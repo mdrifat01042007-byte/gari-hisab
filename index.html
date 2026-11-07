@@ -34,6 +34,11 @@ input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--brand);o
 .mini{min-height:40px;padding:0 14px;font:inherit;border-radius:10px;border:1.5px solid var(--line);background:none;color:var(--ink);margin:8px 8px 0 0}
 .mini.del{color:var(--warn);border-color:var(--warn)}
 #toast{position:fixed;left:12px;right:12px;bottom:16px;max-width:536px;margin:auto;padding:14px 16px;border-radius:12px;color:#fff;font-weight:500;display:none;z-index:9}
+select{width:100%;font:inherit;color:inherit;background:var(--bg);border:1.5px solid var(--line);border-radius:10px;padding:12px}
+select:focus{outline:3px solid var(--brand);outline-offset:1px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.st{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}.st b{font-size:20px}
+.tabs.g{display:grid;grid-template-columns:repeat(3,1fr)}
 .hide{display:none}
 </style>
 </head>
@@ -66,7 +71,7 @@ input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--brand);o
 <div id="app" class="hide">
   <div class="top"><div><h1>গাড়ির হিসাব</h1><span id="who" class="mute"></span> <span id="role" class="badge"></span></div>
     <button class="mini" id="out">লগআউট</button></div>
-  <div class="tabs" style="margin-top:12px"><button id="tNew" class="on">নতুন ট্রিপ</button><button id="tList">ট্রিপের তালিকা</button></div>
+  <div class="tabs g" style="margin-top:12px"><button id="tDash">ড্যাশবোর্ড</button><button id="tNew" class="on">নতুন ট্রিপ</button><button id="tExp">খরচ</button><button id="tRent">ভাড়া</button><button id="tList">তালিকা</button></div>
 
   <div id="pNew" class="card">
     <label for="when">তারিখ ও সময়</label><input id="when" type="datetime-local">
@@ -85,6 +90,30 @@ input:focus,textarea:focus,button:focus-visible{outline:3px solid var(--brand);o
   </div>
 
   <div id="pList" class="hide"><div id="list"></div></div>
+  <div id="pDash" class="hide"><div id="dash"></div></div>
+  <div id="pExp" class="hide">
+    <div class="card"><h2>খরচ যোগ করুন</h2>
+      <label for="ed">তারিখ</label><input id="ed" type="date">
+      <label for="ec">খরচের ধরন</label><select id="ec"></select>
+      <div id="fuelBox"><div class="row"><div><label for="ft">জ্বালানির ধরন</label><select id="ft"><option>অকটেন</option><option>পেট্রোল</option><option>ডিজেল</option><option>সিএনজি</option></select></div>
+        <div><label for="fl">লিটার</label><input id="fl" type="number" inputmode="decimal" min="0"></div></div>
+        <label for="fpl">প্রতি লিটার দাম (৳)</label><input id="fpl" type="number" inputmode="decimal" min="0"></div>
+      <label for="ea">মোট টাকা (৳) *</label><input id="ea" type="number" inputmode="decimal" min="0">
+      <label for="em">পেমেন্ট মাধ্যম</label><select id="em"></select>
+      <label for="en">নোট</label><input id="en">
+      <button class="btn" id="esave">খরচ সংরক্ষণ করুন</button></div>
+    <div id="elist"></div></div>
+  <div id="pRent" class="hide">
+    <div id="rsum" class="card"></div>
+    <div class="card"><h2>ভাড়ার হিসাব যোগ করুন</h2>
+      <label for="rk">কী যোগ করবেন</label><select id="rk"><option value="due">ভাড়া পাওনা (দিতে হবে)</option><option value="payment">ভাড়া পরিশোধ করেছি</option></select>
+      <label for="rd">তারিখ</label><input id="rd" type="date">
+      <label for="ra">টাকা (৳) *</label><input id="ra" type="number" inputmode="decimal" min="0">
+      <div id="rmBox" class="hide"><label for="rm">পেমেন্ট মাধ্যম</label><select id="rm"></select>
+        <label for="rimg">রসিদের ছবি</label><input id="rimg" type="file" accept="image/*"></div>
+      <label for="rn">নোট</label><input id="rn">
+      <button class="btn" id="rsave">সংরক্ষণ করুন</button></div>
+    <div id="rlist"></div></div>
 </div>
 </div>
 <div id="toast"></div>
@@ -171,7 +200,7 @@ async function start() {
   me = data;
   $('#who').textContent = me.name || me.email;
   $('#role').textContent = me.role === 'owner' ? 'মালিক' : 'চালক';
-  resetForm(); show('#app'); switchTab('new');
+  resetForm(); show('#app'); ['Dash','Rent'].forEach(x => $('#t' + x).classList.toggle('hide', me.role !== 'owner')); switchTab(me.role === 'owner' ? 'Dash' : 'New');
 }
 sb.auth.onAuthStateChange((ev) => {
   if (ev === 'PASSWORD_RECOVERY') show('#reset');
@@ -179,12 +208,12 @@ sb.auth.onAuthStateChange((ev) => {
 });
 
 /* ---- ট্যাব ---- */
+const TABS = ['Dash', 'New', 'Exp', 'Rent', 'List'];
 function switchTab(t) {
-  $('#tNew').classList.toggle('on', t === 'new'); $('#tList').classList.toggle('on', t === 'list');
-  $('#pNew').classList.toggle('hide', t !== 'new'); $('#pList').classList.toggle('hide', t !== 'list');
-  if (t === 'list') loadList();
+  TABS.forEach(x => { $('#t' + x).classList.toggle('on', x === t); $('#p' + x).classList.toggle('hide', x !== t); });
+  if (t === 'List') loadList(); if (t === 'Dash') loadDash(); if (t === 'Exp') loadExp(); if (t === 'Rent') loadRent();
 }
-$('#tNew').onclick = () => switchTab('new'); $('#tList').onclick = () => switchTab('list');
+TABS.forEach(x => $('#t' + x).onclick = () => switchTab(x));
 
 /* ---- ট্রিপ যোগ ---- */
 function nowLocal() { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); }
@@ -273,6 +302,125 @@ $('#list').onclick = async e => {
     if (b.dataset.p) await sb.storage.from('receipts').remove([b.dataset.p]);
     toast('ট্রিপ মুছে ফেলা হয়েছে।'); loadList();
   }
+};
+
+/* ---- ধাপ ২: ড্যাশবোর্ড, খরচ, ভাড়া ---- */
+const PM = { cash: 'হাতে নগদ', bkash: 'বিকাশ', nagad: 'নগদ অ্যাপ', bank: 'ব্যাংক', other: 'অন্য' };
+const CAT = { fuel: 'তেল', gas: 'গ্যাস', repair: 'মেরামত', maintenance: 'রক্ষণাবেক্ষণ', driver: 'চালকের খরচ', other: 'অন্যান্য' };
+const opt = o => Object.entries(o).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+$('#ec').innerHTML = opt(CAT); $('#em').innerHTML = opt(PM); $('#rm').innerHTML = opt(PM);
+const today = () => new Date().toLocaleDateString('en-CA');
+const sum = (a, f) => a.reduce((s, x) => s + Number(f(x) || 0), 0);
+const tripCost = t => +t.fuel_cost + +t.gas_cost + +t.repair_cost + +t.other_cost;
+const dayOf = t => new Date(t.trip_at).toLocaleDateString('en-CA');
+const fmtD = d => new Date(d + 'T00:00').toLocaleDateString('bn-BD', { dateStyle: 'medium' });
+
+async function loadDash() {
+  const d = $('#dash'); d.innerHTML = '<p class="mute">লোড হচ্ছে...</p>';
+  const [a, b, c] = await Promise.all([
+    sb.from('trips').select('*').order('trip_at', { ascending: false }).limit(5000),
+    sb.from('expenses').select('*').limit(5000), sb.from('rent').select('*').limit(5000)]);
+  const err = a.error || b.error || c.error;
+  if (err) return d.innerHTML = '<p class="cost">' + esc(bnErr(err)) + '</p>';
+  const T = a.data, E = b.data, R = c.data, td = today(), mo = td.slice(0, 7);
+  const calc = ok => {
+    const i = sum(T.filter(t => ok(dayOf(t))), t => t.fare);
+    const x = sum(T.filter(t => ok(dayOf(t))), tripCost) + sum(E.filter(e => ok(e.spent_on)), e => e.amount)
+      + sum(R.filter(r => r.kind === 'payment' && ok(r.on_date)), r => r.amount);
+    return { i, x, p: i - x };
+  };
+  const D = calc(s => s === td), M = calc(s => s.startsWith(mo));
+  const km = sum(T, t => t.distance_km), fuel = sum(T, t => t.fuel_cost) + sum(E.filter(e => e.category === 'fuel'), e => e.amount);
+  const due = sum(R.filter(r => r.kind === 'due'), r => r.amount) - sum(R.filter(r => r.kind === 'payment'), r => r.amount);
+  const st = (l, v, c = '') => `<div class="st"><div class="mute">${l}</div><div class="${c}"><b>${v}</b></div></div>`;
+  d.innerHTML = `<div class="g2">${st('আজকের আয়', taka(D.i), 'ok')}${st('আজকের খরচ', taka(D.x), 'cost')}${st('আজকের লাভ', taka(D.p))}
+    ${st('এই মাসের আয়', taka(M.i), 'ok')}${st('এই মাসের খরচ', taka(M.x), 'cost')}${st('মাসের নিট লাভ', taka(M.p))}
+    ${st('মোট ট্রিপ', bn(T.length))}${st('মোট দূরত্ব', bn(km) + ' কিমি')}${st('বাকি ভাড়া', taka(Math.max(due, 0)), due > 0 ? 'cost' : '')}
+    ${st('প্রতি কিমি তেল খরচ', km > 0 && fuel > 0 ? taka((fuel / km).toFixed(1)) : 'তথ্য কম')}</div>
+    <p class="mute">খরচে ট্রিপের খরচ, আলাদা খরচ ও ভাড়া পরিশোধ ধরা হয়েছে।</p><h2>সাম্প্রতিক ট্রিপ</h2>`
+    + (T.slice(0, 5).map(t => `<div class="card"><div class="top"><b>${esc(t.from_place)} থেকে ${esc(t.to_place)}</b><span class="fare">${taka(t.fare)}</span></div>
+      <div class="mute">${new Date(t.trip_at).toLocaleString('bn-BD', { dateStyle: 'medium', timeStyle: 'short' })}</div></div>`).join('') || '<div class="card mute">এখনো কোনো ট্রিপ নেই।</div>');
+}
+
+const rowClick = (table, reload) => async e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.r) {
+    const { data, error } = await sb.storage.from('receipts').createSignedUrl(b.dataset.r, 120);
+    return error ? toast(bnErr(error), false) : window.open(data.signedUrl, '_blank');
+  }
+  if (b.dataset.d) {
+    if (!confirm('এটা চিরতরে মুছে ফেলবেন? ফেরানো যাবে না।')) return;
+    const { error } = await sb.from(table).delete().eq('id', b.dataset.d);
+    if (error) return toast(bnErr(error), false);
+    if (b.dataset.p) await sb.storage.from('receipts').remove([b.dataset.p]);
+    toast('মুছে ফেলা হয়েছে।'); reload();
+  }
+};
+
+/* খরচ */
+const fb = () => $('#fuelBox').classList.toggle('hide', $('#ec').value !== 'fuel');
+$('#ec').onchange = fb; fb();
+['fl', 'fpl'].forEach(i => $('#' + i).oninput = () => { const l = num('fl'), p = num('fpl'); if (l > 0 && p > 0) $('#ea').value = Math.round(l * p * 100) / 100; });
+async function loadExp() {
+  if (!$('#ed').value) $('#ed').value = today();
+  const { data, error } = await sb.from('expenses').select('*, profiles(name)').order('spent_on', { ascending: false }).order('created_at', { ascending: false }).limit(30);
+  if (error) return $('#elist').innerHTML = '<p class="cost">' + esc(bnErr(error)) + '</p>';
+  $('#elist').innerHTML = '<h2>সাম্প্রতিক খরচ</h2>' + (data.map(e => `<div class="card"><div class="top"><b>${CAT[e.category]}</b><span class="cost"><b>${taka(e.amount)}</b></span></div>
+    <div class="mute">${fmtD(e.spent_on)} · ${PM[e.method]} · ${esc(e.profiles?.name || '-')}</div>
+    ${e.litres ? `<div class="mute">${esc(e.fuel_type || '')} · ${bn(e.litres)} লিটার${e.price_per_litre ? ' · লিটার ' + taka(e.price_per_litre) : ''}</div>` : ''}
+    ${e.notes ? `<div class="mute">নোট: ${esc(e.notes)}</div>` : ''}
+    ${me.role === 'owner' ? `<button class="mini del" data-d="${e.id}">মুছুন</button>` : ''}</div>`).join('') || '<div class="card mute">এখনো কোনো খরচ নেই।</div>');
+}
+$('#elist').onclick = rowClick('expenses', loadExp);
+$('#esave').onclick = async () => {
+  const amt = num('ea'), cat = $('#ec').value, date = $('#ed').value;
+  if (!date) return toast('তারিখ দিন।', false);
+  if (date > today()) return toast('ভবিষ্যতের তারিখ দেওয়া যাবে না।', false);
+  if (!(amt > 0)) return toast('টাকার পরিমাণ ০-এর বেশি লিখুন।', false);
+  const row = { spent_on: date, category: cat, amount: amt, method: $('#em').value, notes: $('#en').value.trim() };
+  if (cat === 'fuel') { row.fuel_type = $('#ft').value; row.litres = num('fl') || null; row.price_per_litre = num('fpl') || null; }
+  const btn = $('#esave'); btn.disabled = true;
+  try {
+    const { data: dp } = await sb.from('expenses').select('id').eq('driver_id', me.id).eq('spent_on', date).eq('category', cat).eq('amount', amt).limit(1);
+    if (dp && dp.length && !confirm('একই তারিখে একই টাকার খরচ আগেই আছে। আবার সংরক্ষণ করবেন?')) { btn.disabled = false; return; }
+    const { error } = await sb.from('expenses').insert(row); if (error) throw error;
+    toast('খরচ সংরক্ষণ হয়েছে।'); ['ea', 'en', 'fl', 'fpl'].forEach(i => $('#' + i).value = ''); loadExp();
+  } catch (e) { toast(bnErr(e), false); }
+  btn.disabled = false;
+};
+
+/* ভাড়া (শুধু মালিক) */
+$('#rk').onchange = () => $('#rmBox').classList.toggle('hide', $('#rk').value !== 'payment');
+async function loadRent() {
+  if (!$('#rd').value) $('#rd').value = today();
+  const { data, error } = await sb.from('rent').select('*').order('on_date', { ascending: false }).order('created_at', { ascending: false }).limit(100);
+  if (error) return $('#rlist').innerHTML = '<p class="cost">' + esc(bnErr(error)) + '</p>';
+  const due = sum(data.filter(r => r.kind === 'due'), r => r.amount), paid = sum(data.filter(r => r.kind === 'payment'), r => r.amount), left = due - paid;
+  const status = due === 0 ? 'কোনো পাওনা যোগ করা হয়নি' : left > 0 ? 'বাকি আছে' : 'পরিশোধিত';
+  $('#rsum').innerHTML = `<h2>ভাড়ার সারাংশ</h2><div>মোট দিতে হবে: <b>${taka(due)}</b></div><div>এ পর্যন্ত দিয়েছি: <b>${taka(paid)}</b></div>
+    <div>বাকি: <b class="${left > 0 ? 'cost' : 'fare'}">${taka(Math.max(left, 0))}</b></div><div class="mute">অবস্থা: ${status}</div>`;
+  $('#rlist').innerHTML = '<h2>লেনদেনের তালিকা</h2>' + (data.map(r => `<div class="card"><div class="top"><b>${r.kind === 'due' ? 'ভাড়া পাওনা' : 'ভাড়া পরিশোধ'}</b><b>${taka(r.amount)}</b></div>
+    <div class="mute">${fmtD(r.on_date)}${r.method ? ' · ' + PM[r.method] : ''}</div>${r.notes ? `<div class="mute">নোট: ${esc(r.notes)}</div>` : ''}
+    ${r.receipt_path ? `<button class="mini" data-r="${esc(r.receipt_path)}">রসিদ দেখুন</button>` : ''}
+    <button class="mini del" data-d="${r.id}" data-p="${esc(r.receipt_path || '')}">মুছুন</button></div>`).join('') || '<div class="card mute">এখনো কিছু যোগ করা হয়নি।</div>');
+}
+$('#rlist').onclick = rowClick('rent', loadRent);
+$('#rsave').onclick = async () => {
+  const kind = $('#rk').value, amt = num('ra'), date = $('#rd').value;
+  if (!date) return toast('তারিখ দিন।', false);
+  if (!(amt > 0)) return toast('টাকার পরিমাণ ০-এর বেশি লিখুন।', false);
+  const btn = $('#rsave'); btn.disabled = true;
+  try {
+    let path = null; const f = $('#rimg').files[0];
+    if (kind === 'payment' && f) {
+      const blob = await compress(f); path = `${me.id}/rent-${Date.now()}.jpg`;
+      const up = await sb.storage.from('receipts').upload(path, blob, { contentType: 'image/jpeg' }); if (up.error) throw up.error;
+    }
+    const { error } = await sb.from('rent').insert({ kind, on_date: date, amount: amt, method: kind === 'payment' ? $('#rm').value : null, notes: $('#rn').value.trim(), receipt_path: path });
+    if (error) throw error;
+    toast('সংরক্ষণ হয়েছে।'); ['ra', 'rn', 'rimg'].forEach(i => $('#' + i).value = ''); loadRent();
+  } catch (e) { toast(bnErr(e), false); }
+  btn.disabled = false;
 };
 
 setMode('login'); start();
