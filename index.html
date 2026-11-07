@@ -39,6 +39,13 @@ select:focus{outline:3px solid var(--brand);outline-offset:1px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
 .st{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px}.st b{font-size:20px}
 .tabs.g{display:grid;grid-template-columns:repeat(3,1fr)}
+.ok{color:var(--ok)}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal button{min-height:56px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:2px;line-height:1.25;cursor:pointer}
+.cal .h{text-align:center;font-weight:500;font-size:13px}
+.cal button.nt{background:var(--bg);color:var(--mute)}
+.cal button.sel{outline:3px solid var(--brand)}
+@media print{.tabs,.top button,#toast,.noprint{display:none!important}body{background:#fff;color:#000}}
 .hide{display:none}
 </style>
 </head>
@@ -71,7 +78,7 @@ select:focus{outline:3px solid var(--brand);outline-offset:1px}
 <div id="app" class="hide">
   <div class="top"><div><h1>গাড়ির হিসাব</h1><span id="who" class="mute"></span> <span id="role" class="badge"></span></div>
     <button class="mini" id="out">লগআউট</button></div>
-  <div class="tabs g" style="margin-top:12px"><button id="tDash">ড্যাশবোর্ড</button><button id="tNew" class="on">নতুন ট্রিপ</button><button id="tExp">খরচ</button><button id="tRent">ভাড়া</button><button id="tList">তালিকা</button></div>
+  <div class="tabs g" style="margin-top:12px"><button id="tDash">ড্যাশবোর্ড</button><button id="tNew" class="on">নতুন ট্রিপ</button><button id="tExp">খরচ</button><button id="tRent">ভাড়া</button><button id="tList">তালিকা</button><button id="tRem">রিমাইন্ডার</button><button id="tCal">ক্যালেন্ডার</button><button id="tRep">রিপোর্ট</button></div>
 
   <div id="pNew" class="card">
     <label for="when">তারিখ ও সময়</label><input id="when" type="datetime-local">
@@ -114,6 +121,25 @@ select:focus{outline:3px solid var(--brand);outline-offset:1px}
       <label for="rn">নোট</label><input id="rn">
       <button class="btn" id="rsave">সংরক্ষণ করুন</button></div>
     <div id="rlist"></div></div>
+  <div id="pRem" class="hide">
+    <div id="remForm" class="card hide"><h2>রিমাইন্ডার যোগ করুন</h2>
+      <label for="xk">ধরন</label><select id="xk"></select>
+      <label for="xd">শেষ তারিখ / সার্ভিসের তারিখ</label><input id="xd" type="date">
+      <label for="xn">নোট</label><input id="xn">
+      <button class="btn" id="xsave">সংরক্ষণ করুন</button></div>
+    <div id="remList"></div></div>
+  <div id="pCal" class="hide">
+    <div class="card"><div class="top"><button class="mini" id="cPrev">আগের মাস</button><b id="calTitle"></b><button class="mini" id="cNext">পরের মাস</button></div>
+      <div id="calGrid" class="cal" style="margin-top:10px"></div></div>
+    <div id="calDay"></div></div>
+  <div id="pRep" class="hide">
+    <div class="card noprint"><h2>রিপোর্ট</h2>
+      <label for="rpT">ধরন</label><select id="rpT"></select>
+      <label for="rpD">তারিখ (এই তারিখের দিন/সপ্তাহ/মাস)</label><input id="rpD" type="date">
+      <button class="btn" id="rpGo">রিপোর্ট দেখান</button></div>
+    <div id="rpOut"></div>
+    <div class="card noprint"><h2>ব্যাকআপ</h2><p class="mute">সব হিসাব একটি ফাইলে ফোনে সংরক্ষণ হবে। মাসে অন্তত একবার নিন।</p>
+      <button class="btn" id="bk">ব্যাকআপ ডাউনলোড করুন</button></div></div>
 </div>
 </div>
 <div id="toast"></div>
@@ -200,7 +226,7 @@ async function start() {
   me = data;
   $('#who').textContent = me.name || me.email;
   $('#role').textContent = me.role === 'owner' ? 'মালিক' : 'চালক';
-  resetForm(); show('#app'); ['Dash','Rent'].forEach(x => $('#t' + x).classList.toggle('hide', me.role !== 'owner')); switchTab(me.role === 'owner' ? 'Dash' : 'New');
+  resetForm(); show('#app'); ['Dash','Rent','Cal','Rep'].forEach(x => $('#t' + x).classList.toggle('hide', me.role !== 'owner')); switchTab(me.role === 'owner' ? 'Dash' : 'New');
 }
 sb.auth.onAuthStateChange((ev) => {
   if (ev === 'PASSWORD_RECOVERY') show('#reset');
@@ -208,10 +234,10 @@ sb.auth.onAuthStateChange((ev) => {
 });
 
 /* ---- ট্যাব ---- */
-const TABS = ['Dash', 'New', 'Exp', 'Rent', 'List'];
+const TABS = ['Dash', 'New', 'Exp', 'Rent', 'List', 'Rem', 'Cal', 'Rep'];
 function switchTab(t) {
   TABS.forEach(x => { $('#t' + x).classList.toggle('on', x === t); $('#p' + x).classList.toggle('hide', x !== t); });
-  if (t === 'List') loadList(); if (t === 'Dash') loadDash(); if (t === 'Exp') loadExp(); if (t === 'Rent') loadRent();
+  if (t === 'List') loadList(); if (t === 'Dash') loadDash(); if (t === 'Exp') loadExp(); if (t === 'Rent') loadRent(); if (t === 'Rem') loadRem(); if (t === 'Cal') loadCal(); if (t === 'Rep' && !$('#rpD').value) $('#rpD').value = today();
 }
 TABS.forEach(x => $('#t' + x).onclick = () => switchTab(x));
 
@@ -317,12 +343,8 @@ const fmtD = d => new Date(d + 'T00:00').toLocaleDateString('bn-BD', { dateStyle
 
 async function loadDash() {
   const d = $('#dash'); d.innerHTML = '<p class="mute">লোড হচ্ছে...</p>';
-  const [a, b, c] = await Promise.all([
-    sb.from('trips').select('*').order('trip_at', { ascending: false }).limit(5000),
-    sb.from('expenses').select('*').limit(5000), sb.from('rent').select('*').limit(5000)]);
-  const err = a.error || b.error || c.error;
-  if (err) return d.innerHTML = '<p class="cost">' + esc(bnErr(err)) + '</p>';
-  const T = a.data, E = b.data, R = c.data, td = today(), mo = td.slice(0, 7);
+  const A = await loadAll(); if (A.err) return d.innerHTML = '<p class="cost">' + esc(bnErr(A.err)) + '</p>';
+  const T = A.T, E = A.E, R = A.R, td = today(), mo = td.slice(0, 7);
   const calc = ok => {
     const i = sum(T.filter(t => ok(dayOf(t))), t => t.fare);
     const x = sum(T.filter(t => ok(dayOf(t))), tripCost) + sum(E.filter(e => ok(e.spent_on)), e => e.amount)
@@ -421,6 +443,148 @@ $('#rsave').onclick = async () => {
     toast('সংরক্ষণ হয়েছে।'); ['ra', 'rn', 'rimg'].forEach(i => $('#' + i).value = ''); loadRent();
   } catch (e) { toast(bnErr(e), false); }
   btn.disabled = false;
+};
+
+/* ---- ধাপ ৩: রিমাইন্ডার, ক্যালেন্ডার, রিপোর্ট, ব্যাকআপ ---- */
+async function fetchAll(table, sel = '*') {
+  let out = [], from = 0;
+  for (;;) {
+    const { data, error } = await sb.from(table).select(sel).order('created_at', { ascending: true }).range(from, from + 999);
+    if (error) return { error };
+    out = out.concat(data); if (data.length < 1000) return { data: out }; from += 1000;
+  }
+}
+async function loadAll() {
+  const [a, b, c] = await Promise.all([fetchAll('trips', '*, profiles(name)'), fetchAll('expenses'), fetchAll('rent')]);
+  const err = a.error || b.error || c.error;
+  const T = (a.data || []).sort((x, y) => new Date(y.trip_at) - new Date(x.trip_at));
+  return { err, T, E: b.data || [], R: c.data || [] };
+}
+const tally = (A, ok) => {
+  const Tt = A.T.filter(t => ok(dayOf(t))), Ee = A.E.filter(e => ok(e.spent_on)), Rr = A.R.filter(r => r.kind === 'payment' && ok(r.on_date));
+  const i = sum(Tt, t => t.fare), rent = sum(Rr, r => r.amount), x = sum(Tt, tripCost) + sum(Ee, e => e.amount) + rent;
+  return { i, x, p: i - x, n: Tt.length, km: sum(Tt, t => t.distance_km), rent, Tt, Ee, Rr };
+};
+function dl(name, text, type) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
+const csvq = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+
+/* রিমাইন্ডার */
+const RK = { oil: 'ইঞ্জিন অয়েল', tyre: 'টায়ার', battery: 'ব্যাটারি', fitness: 'ফিটনেস', tax: 'ট্যাক্স টোকেন', insurance: 'ইনস্যুরেন্স', other: 'অন্যান্য সার্ভিসিং' };
+$('#xk').innerHTML = opt(RK);
+async function loadRem() {
+  $('#remForm').classList.toggle('hide', me.role !== 'owner');
+  if (!$('#xd').value) $('#xd').value = today();
+  const { data, error } = await sb.from('reminders').select('*').eq('done', false).order('due_on').limit(200);
+  if (error) return $('#remList').innerHTML = '<p class="cost">' + esc(bnErr(error)) + '</p>';
+  const td = new Date(today() + 'T00:00');
+  $('#remList').innerHTML = '<h2>আসন্ন ও মেয়াদ পার</h2>' + (data.map(r => {
+    const days = Math.round((new Date(r.due_on + 'T00:00') - td) / 864e5);
+    const txt = days < 0 ? bn(-days) + ' দিন পার হয়েছে' : days === 0 ? 'আজই শেষ' : bn(days) + ' দিন বাকি';
+    return `<div class="card"><div class="top"><b>${RK[r.kind]}</b><b class="${days < 0 ? 'cost' : days <= 30 ? '' : 'mute'}">${txt}</b></div>
+      <div class="mute">${fmtD(r.due_on)}${r.notes ? ' · ' + esc(r.notes) : ''}</div>
+      ${me.role === 'owner' ? `<button class="mini" data-k="${r.id}">সম্পন্ন</button><button class="mini del" data-d="${r.id}">মুছুন</button>` : ''}</div>`;
+  }).join('') || '<div class="card mute">কোনো রিমাইন্ডার নেই।</div>');
+}
+const remRow = rowClick('reminders', loadRem);
+$('#remList').onclick = async e => {
+  const b = e.target.closest('button');
+  if (b && b.dataset.k) {
+    const { error } = await sb.from('reminders').update({ done: true }).eq('id', b.dataset.k);
+    if (error) return toast(bnErr(error), false);
+    toast('সম্পন্ন করা হয়েছে।'); return loadRem();
+  }
+  remRow(e);
+};
+$('#xsave').onclick = async () => {
+  if (!$('#xd').value) return toast('তারিখ দিন।', false);
+  const { error } = await sb.from('reminders').insert({ kind: $('#xk').value, due_on: $('#xd').value, notes: $('#xn').value.trim() });
+  if (error) return toast(bnErr(error), false);
+  toast('রিমাইন্ডার সংরক্ষণ হয়েছে।'); $('#xn').value = ''; loadRem();
+};
+
+/* ক্যালেন্ডার */
+let cm = today().slice(0, 7), cAll = null, cSel = null;
+async function loadCal() {
+  $('#calGrid').innerHTML = '<span class="mute">লোড হচ্ছে...</span>';
+  cAll = await loadAll();
+  if (cAll.err) return $('#calGrid').innerHTML = '<span class="cost">' + esc(bnErr(cAll.err)) + '</span>';
+  drawCal();
+}
+function drawCal() {
+  const [y, m] = cm.split('-').map(Number), first = new Date(y, m - 1, 1), n = new Date(y, m, 0).getDate();
+  $('#calTitle').textContent = first.toLocaleDateString('bn-BD', { month: 'long', year: 'numeric' });
+  let h = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহ', 'শুক্র', 'শনি'].map(d => `<div class="h">${d}</div>`).join('') + '<span></span>'.repeat(first.getDay());
+  for (let d = 1; d <= n; d++) {
+    const ds = `${cm}-${String(d).padStart(2, '0')}`, t = tally(cAll, s => s === ds);
+    h += `<button class="${ds <= today() && t.n === 0 ? 'nt' : ''}${ds === cSel ? ' sel' : ''}" data-ds="${ds}"><b>${bn(d)}</b><br><span class="${t.p >= 0 ? 'ok' : 'cost'}">${t.i || t.x ? bn(t.p) : ''}</span></button>`;
+  }
+  $('#calGrid').innerHTML = h; showDay();
+}
+function showDay() {
+  const o = $('#calDay');
+  if (!cSel) return o.innerHTML = '<p class="mute">কোনো তারিখে চাপ দিন। ধূসর দিন মানে ট্রিপ হয়নি। সংখ্যা মানে সেই দিনের লাভ।</p>';
+  const t = tally(cAll, s => s === cSel);
+  o.innerHTML = `<div class="card"><h2>${fmtD(cSel)}</h2><div>আয়: <b class="ok">${taka(t.i)}</b> · খরচ: <b class="cost">${taka(t.x)}</b></div><div>লাভ: <b>${taka(t.p)}</b> · ট্রিপ: ${bn(t.n)}</div></div>`
+    + t.Tt.map(x => `<div class="card"><div class="top"><b>${esc(x.from_place)} থেকে ${esc(x.to_place)}</b><span class="fare">${taka(x.fare)}</span></div><div class="mute">${esc(x.profiles?.name || '-')} · ${bn(x.distance_km)} কিমি</div></div>`).join('')
+    + t.Ee.map(x => `<div class="card"><div class="top"><b>${CAT[x.category]}</b><span class="cost">${taka(x.amount)}</span></div></div>`).join('')
+    + t.Rr.map(x => `<div class="card"><div class="top"><b>ভাড়া পরিশোধ</b><span class="cost">${taka(x.amount)}</span></div></div>`).join('');
+}
+const shift = k => { const [y, m] = cm.split('-').map(Number), d = new Date(y, m - 1 + k, 1); cm = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; cSel = null; drawCal(); };
+$('#cPrev').onclick = () => cAll && shift(-1); $('#cNext').onclick = () => cAll && shift(1);
+$('#calGrid').onclick = e => { const b = e.target.closest('button'); if (b) { cSel = b.dataset.ds; drawCal(); } };
+
+/* রিপোর্ট */
+$('#rpT').innerHTML = opt({ day: 'দৈনিক', week: 'সাপ্তাহিক (শনি থেকে শুক্র)', month: 'মাসিক' });
+const f2 = x => x.toLocaleDateString('en-CA');
+function range(ty, ds) {
+  const d = new Date(ds + 'T00:00');
+  if (ty === 'day') return [ds, ds];
+  if (ty === 'week') { const s = new Date(d); s.setDate(d.getDate() - ((d.getDay() + 1) % 7)); const e = new Date(s); e.setDate(s.getDate() + 6); return [f2(s), f2(e)]; }
+  return [f2(new Date(d.getFullYear(), d.getMonth(), 1)), f2(new Date(d.getFullYear(), d.getMonth() + 1, 0))];
+}
+const cmp = (l, c, p, plain) => `<div class="top"><span>${l}</span><span><b>${plain ? bn(c) : taka(c)}</b> <span class="mute">(গত মাস ${plain ? bn(p) : taka(p)})</span></span></div>`;
+let lastRep = null;
+$('#rpGo').onclick = async () => {
+  const out = $('#rpOut'); out.innerHTML = '<p class="mute">লোড হচ্ছে...</p>';
+  const A = await loadAll(); if (A.err) return out.innerHTML = '<p class="cost">' + esc(bnErr(A.err)) + '</p>';
+  const ty = $('#rpT').value, ds = $('#rpD').value || today(), [a, b] = range(ty, ds), t = tally(A, s => s >= a && s <= b);
+  lastRep = { t, a, b };
+  const row = (l, v, c = '') => `<div class="top"><span>${l}</span><b class="${c}">${v}</b></div>`;
+  let h = `<div class="card"><h2>${ty === 'day' ? 'দৈনিক' : ty === 'week' ? 'সাপ্তাহিক' : 'মাসিক'} রিপোর্ট</h2><div class="mute">${fmtD(a)}${a !== b ? ' থেকে ' + fmtD(b) : ''}</div>
+    ${row('মোট আয়', taka(t.i), 'ok')}${row('মোট খরচ (ভাড়া বাদে)', taka(t.x - t.rent), 'cost')}${row('ভাড়া পরিশোধ', taka(t.rent))}
+    ${row('মোট ট্রিপ', bn(t.n))}${row('মোট কিমি', bn(t.km))}${row('নিট লাভ', taka(t.p), t.p >= 0 ? 'ok' : 'cost')}</div>`;
+  if (ty === 'month') {
+    const d0 = new Date(a + 'T00:00'), [pa, pb] = range('month', f2(new Date(d0.getFullYear(), d0.getMonth() - 1, 1))), q = tally(A, s => s >= pa && s <= pb);
+    h += `<div class="card"><h2>গত মাসের সাথে তুলনা</h2>${cmp('আয়', t.i, q.i)}${cmp('খরচ', t.x, q.x)}${cmp('নিট লাভ', t.p, q.p)}${cmp('ট্রিপ', t.n, q.n, 1)}</div>`;
+  }
+  const by = {}; t.Tt.forEach(x => { const k = x.profiles?.name || '-'; by[k] = by[k] || { n: 0, i: 0 }; by[k].n++; by[k].i += +x.fare; });
+  h += '<div class="card"><h2>চালক অনুযায়ী</h2>' + (Object.entries(by).map(([k, v]) => row(esc(k) + ' (' + bn(v.n) + ' ট্রিপ)', taka(v.i))).join('') || '<span class="mute">কোনো ট্রিপ নেই</span>') + '</div>';
+  out.innerHTML = h + '<div class="noprint"><button class="mini" id="csvB">CSV ডাউনলোড</button><button class="mini" id="pdfB">PDF সংরক্ষণ</button></div>';
+};
+$('#rpOut').onclick = e => {
+  const bt = e.target.closest('button'); if (!bt || !lastRep) return;
+  if (bt.id === 'pdfB') { toast('প্রিন্ট পাতায় "Save as PDF" বেছে নিন।'); setTimeout(() => window.print(), 700); }
+  if (bt.id === 'csvB') {
+    const { t, a, b } = lastRep, rows = [['তারিখ', 'ধরন', 'বিভাগ', 'টাকা', 'বিবরণ']];
+    t.Tt.forEach(x => { const d = dayOf(x); rows.push([d, 'আয়', 'ট্রিপ', x.fare, `${x.from_place} থেকে ${x.to_place}`]); if (tripCost(x) > 0) rows.push([d, 'খরচ', 'ট্রিপের খরচ', tripCost(x), '']); });
+    t.Ee.forEach(x => rows.push([x.spent_on, 'খরচ', CAT[x.category], x.amount, x.notes || '']));
+    t.Rr.forEach(x => rows.push([x.on_date, 'খরচ', 'ভাড়া পরিশোধ', x.amount, x.notes || '']));
+    dl(`hisab-${a}-${b}.csv`, '\uFEFF' + rows.map(r => r.map(csvq).join(',')).join('\n'), 'text/csv');
+    toast('CSV ফাইল ডাউনলোড হয়েছে।');
+  }
+};
+
+/* ব্যাকআপ */
+$('#bk').onclick = async () => {
+  const out = {};
+  for (const n of ['profiles', 'trips', 'expenses', 'rent', 'reminders']) {
+    const r = await fetchAll(n); if (r.error) return toast(bnErr(r.error), false); out[n] = r.data;
+  }
+  dl(`gari-hisab-backup-${today()}.json`, JSON.stringify(out, null, 1), 'application/json');
+  toast('ব্যাকআপ ফাইল ডাউনলোড হয়েছে।');
 };
 
 setMode('login'); start();
